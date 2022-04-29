@@ -4,7 +4,7 @@
 
 ## 在线预览
 
-你可以在这里预览效果：[在线预览](https://opensource.org/licenses/MIT)
+你可以在这里预览效果：[在线预览](https://totorozuo.github.io/3d-car-showcase/)
 
 ## 环境要求
 
