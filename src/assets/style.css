@@ -35,6 +35,7 @@ body {
     bottom: 0;
     overflow: hidden;
     /*background: #4e5969;*/
+    /*background: #d5cca3;*/
     background: #0f0001;
 }
 
@@ -44,16 +45,29 @@ body {
 }
 
 .color-picker {
+    /*display: none;*/
     position: absolute;
     top: 5%;
-    right: 20px;
-    color: whitesmoke;
-    font-size: 13px;
+    right: 5%;
+    color: darkgray;
+    font-size: 12px;
     text-align: center;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgb(0 0 0 / 40%);
+    /*box-shadow: 0 3px 5px -1px #00000033, 0 5px 8px 0 #00000024, 0 1px 14px 0 #0000001f;*/
 }
 
 .color-picker .color-picker-wrap {
-    margin-bottom: 5px;
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    text-align: center;
+    padding-top: 6px;
+}
+
+.color-picker .color-picker-wrap:hover {
+    background: rgba(0, 0, 0, 0.1);
 }
 
 
@@ -75,7 +89,7 @@ input[type=color] {
     padding: 0;
     box-sizing: border-box;
     border-radius: 100%;
-    border: 1px solid #ffffff;
-    box-shadow: 0 1px 3px #c9bcbc1f, 0 1px 2px #e5d5d53d;
+    border: 0.5px solid #ffffff;
+    box-shadow: 0 3px 5px -1px #00000033, 0 5px 8px 0 #00000024, 0 1px 14px 0 #0000001f;
 }
 

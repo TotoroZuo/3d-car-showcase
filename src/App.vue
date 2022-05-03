@@ -53,6 +53,7 @@ import {
   createCustomMaterial,
 } from "@/utils/utils";
 import { onMounted, onUnmounted, ref, watch } from "vue";
+import { GUI } from "@/utils/libs/lil-gui.module.min";
 
 //屏幕长比
 const RADIO = window.innerWidth / window.innerHeight;
@@ -100,15 +101,16 @@ const renderer = new WebGLRenderer({
 
 // 3D 模型对象
 let model;
+const modelZ = 0;
 
 // 模型的接触阴影对象
 const shadowGroup = new Group();
 
 // 车身颜色
-let carCoatColor = ref();
+let carCoatColor = ref("#2f426f");
 
 // 背景光源颜色
-let backLightColor = ref("#0000ff");
+let backLightColor = ref("#2de8cd");
 
 // 相机控制对象
 let controls;
@@ -120,7 +122,7 @@ let cameraMoveClock = false;
  */
 
 const setCamera = () => {
-  camera.position.set(-10, 0, 15);
+  camera.position.set(0, 0.8, 8);
   camera.castShadow = true;
 
   scene.add(camera);
@@ -140,6 +142,8 @@ const setSpotLight = () => {
   spotLight.angle = 0.3;
   spotLight.shadow.bias = -0.0001;
   spotLight.castShadow = true;
+  spotLight.target.position.set(0, 0, 6);
+  scene.add(spotLight.target);
 
   scene.add(spotLight);
 };
@@ -195,11 +199,17 @@ const load3DModel = async () => {
   if (model.scene) {
     const { materials, nodes } = getMaterials(model.scene);
 
-    Object.values(nodes).forEach(
-      (node) => (node.receiveShadow = node.castShadow = true)
-    );
+    Object.values(nodes).forEach((node) => {
+      node.receiveShadow = false;
+      node.castShadow = false;
+    });
     Object.assign(model, { materials, nodes });
   }
+  model.scene.scale.set(1.6, 1.6, 1.6);
+  // model.scene.position.set(-0.5, -0.18, modelZ);
+  model.scene.position.set(0, 0, modelZ);
+  model.scene.rotation.set(0, Math.PI, 0);
+  scene.add(model.scene);
 };
 
 /**
@@ -207,8 +217,6 @@ const load3DModel = async () => {
  */
 
 const customModel = () => {
-  carCoatColor.value = "#" + model.materials.coat.color.getHexString();
-
   changModel(model, "rubber", {
     color: "#222",
     roughness: 0.6,
@@ -221,22 +229,15 @@ const customModel = () => {
     clearcoat: 0.1,
   });
   changModel(model, "coat", {
+    color: carCoatColor.value,
     envMapIntensity: 4,
-    roughness: 0.5,
-    metalness: 1,
   });
+
   changModel(model, "paint", {
     roughness: 0.5,
     metalness: 0.8,
-    color: "#555",
     envMapIntensity: 2,
   });
-
-  model.scene.scale.set(1.6, 1.6, 1.6);
-  model.scene.position.set(-0.5, -0.18, 0);
-  model.scene.rotation.set(0, Math.PI / 5, 0);
-
-  scene.add(model.scene);
 };
 
 /**
@@ -244,7 +245,7 @@ const customModel = () => {
  */
 
 const setContactShadow = () => {
-  shadowGroup.position.set(0, -1.16, 0);
+  shadowGroup.position.set(0, -1.01, modelZ);
   shadowGroup.rotation.set(0, Math.PI / 2, 0);
   scene.add(shadowGroup);
   createContactShadow(scene, renderer, shadowGroup);
@@ -373,55 +374,104 @@ const setEnvironment = (
  */
 let stopID;
 const clock = new Clock();
+let cameraX, cameraZ;
 const setCameraAnimate = () => {
   const vector = new Vector3();
+
   if (cameraMoveClock) {
     cancelAnimationFrame(stopID);
   } else {
     const t = clock.getElapsedTime();
 
-    camera.position.lerp(
-      vector.set(Math.sin(t / 5), 0, 10 + Math.cos(t / 5)),
-      0.05
-    );
-    camera.lookAt(0, 0, 0);
+    const theta = t / 6;
+
+    const newx = 14 * Math.sin(theta) - 6;
+    const newy = 14 * Math.cos(theta) - 6;
+    cameraX = newx < -10 ? cameraX : newx;
+    cameraZ = newy < -10 ? cameraZ : newy;
+
+    camera.position.lerp(vector.set(cameraX, 0.5, cameraZ), 0.05);
+    camera.lookAt(model.scene.position);
   }
 
   stopID = requestAnimationFrame(setCameraAnimate);
 };
 
 /**
+ * 设置相机的运动轨迹
+ * @param camera
+ * @param v
+ */
+
+function guiMeshPhongMaterial(mesh, material, geometry) {
+  const gui = new GUI();
+  const data = {
+    color: material.color.getHex(),
+    emissive: material.emissive.getHex(),
+    specular: material.specular.getHex(),
+  };
+
+  const folder = gui.addFolder("THREE.MeshPhongMaterial");
+
+  folder.addColor(data, "color").onChange(handleColorChange(material.color));
+  folder
+    .addColor(data, "emissive")
+    .onChange(handleColorChange(material.emissive));
+  folder
+    .addColor(data, "specular")
+    .onChange(handleColorChange(material.specular));
+
+  folder.add(material, "shininess", 0, 100);
+
+  function handleColorChange(color) {
+    return function (value) {
+      if (typeof value === "string") {
+        value = value.replace("#", "0x");
+      }
+
+      color.setHex(value);
+    };
+  }
+}
+
+/**
  * @description 为车设置聚光灯
  */
 
 const setBigSpotLight = () => {
-  scene.background = new Color("#0f0001");
+  // model.scene.receiveShadow = false;
+  scene.background = new Color("#d4cfa3");
   renderer.shadowMap.type = PCFSoftShadowMap;
-  renderer.outputEncoding = sRGBEncoding;
+
   const material = new MeshPhongMaterial({
     side: DoubleSide,
-    color: "#5A0C0C",
-    emissive: "#000000",
+    color: "#00ff1a",
+    emissive: "#ac8f3e",
   });
   const FloorGeometry = new PlaneGeometry(200, 200);
+
   const floorMesh = new Mesh(FloorGeometry, material);
 
   floorMesh.rotation.x = Math.PI / 2;
   floorMesh.receiveShadow = true;
-  floorMesh.position.set(0, -1.2, 0);
+
+  floorMesh.position.set(0, -1.02, 0);
+
+  scene.add(floorMesh);
 
   const bigSpotLight = new SpotLight("#ffffff", 2);
 
-  bigSpotLight.castShadow = true;
-  bigSpotLight.angle = 0.3;
+  bigSpotLight.angle = Math.PI / 8;
   bigSpotLight.penumbra = 0.2;
   bigSpotLight.decay = 2;
-  bigSpotLight.distance = 50;
+  bigSpotLight.distance = 30;
 
-  bigSpotLight.position.set(0, 40, 35);
+  bigSpotLight.position.set(0, 10, 0);
+  bigSpotLight.target.position.set(0, 0, modelZ);
 
+  scene.add(bigSpotLight.target);
   scene.add(bigSpotLight);
-  scene.add(floorMesh);
+  // guiMeshPhongMaterial(floorMesh, material, FloorGeometry);
 };
 
 /**
@@ -433,60 +483,62 @@ const autoRender = () => {
   renderer.render(scene, camera);
   requestAnimationFrame(autoRender);
 };
-
 /**
  * @description 初始化场景
  * @returns {Promise<void>}
  */
 const initScene = async () => {
   // 创建场景
-  // 场景是你放置物体、灯光和摄像机的地方,是Three.js 渲染对象。
   scene = new Scene();
-
   // 设置渲染器
   setRender();
-
-  // 设置环境光照
+  // 设置环境光
   setAmbientLight();
-
   // 设置相机
   setCamera();
-
+  // 加载3d 模型
+  await load3DModel();
+  // 自动以3d模型
+  customModel();
   // 设置聚光灯
   setSpotLight();
 
-  // 加载3d模型
-  await load3DModel();
-  // 自定义3d模型
-  customModel();
+  const t = 600;
+  setTimeout(() => {
+    // 设置 HDR环境（模拟HDR贴图）
+    setEnvironment(scene, 256, Infinity);
+    // 设置运动光源，获得打光效果
+    setMovingSpot(virtualScene);
+  }, t * 2);
+  setTimeout(() => {
+    spotLight.visible = false;
+    // 设置舞台聚光灯
+    setBigSpotLight();
+    // 设置接触阴影
+    setContactShadow();
+  }, 3 * t);
 
-  // 增加接触阴影
-  setContactShadow();
+  setTimeout(() => {
+    // 设置相机运动动画
+    setCameraAnimate();
+  }, t * 5);
 
-  // 生成虚拟HDR环境，布置场景环境
-  setEnvironment(scene, 256, Infinity);
-
-  // 添加运动光斑
-  setMovingSpot(virtualScene);
-
-  // 运动相机，改变观察视角
-  setCameraAnimate(camera);
-
-  // 增加鼠标控制
+  // 添加控制效果
   addControls();
 
-  // 设置聚光灯
-  setBigSpotLight();
-
-  // 将webgl渲染结果canvas写入dom元素
+  // 将渲染结果写入html dom中
   canvas.value.appendChild(renderer.domElement);
-
-  // 场景信息更新后，自动渲染
+  // 开启实时渲染，无需手动渲染
   autoRender();
+  // 监听颜色变化
   watchColorChange();
+  // 监听页面变化重新渲染画布
   listenPageSizeChange();
+
+  // 设置广告
   setAdv();
 };
+
 const setAdv = () => {
   console.log(
     "%c我是 feilongzuo ,关注我，教你学会更多 Web 技术!",
@@ -509,16 +561,20 @@ const watchColorChange = () => {
   //车身样色改变
   watch(carCoatColor, (val, old) => {
     requestAnimationFrame(() => {
-      model.materials.coat.color.set(val);
-      model.materials.coat.needsUpdate = true;
+      if (val) {
+        model.materials.coat.color.set(val);
+        model.materials.coat.needsUpdate = true;
+      }
     });
   });
 
   // 灯光颜色改变
   watch(backLightColor, (val, old) => {
     requestAnimationFrame(() => {
-      virtualBackgroundMesh.material = createCustomMaterial(val);
-      virtualBackgroundMesh.material.needsUpdate = true;
+      if (val) {
+        virtualBackgroundMesh.material = createCustomMaterial(val);
+        virtualBackgroundMesh.material.needsUpdate = true;
+      }
     });
   });
 };
